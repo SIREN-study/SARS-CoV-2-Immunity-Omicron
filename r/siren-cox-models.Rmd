@@ -1,0 +1,205 @@
+---
+title: "SIREN Cox models - R implementation"
+author: 
+- "Peter Kirwan, MRC Biostatistics Unit, University of Cambridge"
+date:   "`r Sys.Date()`"
+output: 
+    html_document:
+        code_folding: hide
+        toc:          true
+---
+
+```{r, include=FALSE}
+
+# libraries
+library(tidyverse)
+library(survival)
+library(finalfit)
+library(flextable)
+
+# load data
+load("~/coviddata/siren_post_processing.RData")
+
+```
+
+```{r labels-functions}
+
+# define labels
+ve_label <- c(
+    "Unvaccinated",
+    "Pfizer dose 1, 0-20 days",
+    "Pfizer dose 1, >20 days",
+    "Pfizer dose 2, 0-13 days",
+    "Pfizer dose 2, 14-193 days",
+    "Pfizer dose 2, >193 days, Delta",
+    "Pfizer dose 3, 0-6 days, Delta",
+    "Pfizer dose 3, 7+ days, Delta",
+    "ChAdOx + Pfizer dose 3, 0-6 days, Delta",
+    "ChAdOx + Pfizer dose 3, 7+ days, Delta",
+    "Pfizer dose 2, >193 days, Omicron",
+    "Pfizer dose 3, 0-6 days, Omicron",
+    "Pfizer dose 3, 6-66 days, Omicron",
+    "Pfizer dose 3, 67+ days, Omicron",
+    "ChAdOx + Pfizer dose 3, 0-6 days, Omicron",
+    "ChAdOx + Pfizer dose 3, 6-66 days, Omicron",
+    "ChAdOx + Pfizer dose 3, 67+ days, Omicron"
+)
+
+```
+
+This document presents Cox Proportional Hazards estimates for the SIREN interim analysis dataset (SIREN_Interim3_20220104.dta). This analysis replicates a set of Stata analyses, thereby providing independent verification.
+
+Survival analysis datasets with multiple intervals for each participant and corresponding covariate values were prepared using the `survival` package (_Therneau T_) and formatted using the `finalfit` package (_Harrison E, Drake T, and Ots R_).
+
+Minor differences exist between the Stata and `survival` package implementations of the Cox Proportional Hazards model:
+
+- The default method for handling tied event times in Stata is the Breslow approximation, whereas in the `survival` package the more accurate Efron approximation is the default. We decided to use the Efron approximation.
+
+- Clustering on NHS trust is used for robust variance calculation. When using clustering, Stata makes an adjustment to the standard errors - multiplying by g/(g − 1), where g is the number of clusters - whereas the `survival` package does not make this adjustment. We decided to use the adjusted standard errors.
+
+## 1. Naive cohort
+
+The vaccination categories were: unvaccinated, 0/20 days post-first dose, 0/14/194 days post-second dose, and 0/7/67 days post-third dose.
+
+The first two doses considered Pfizer only, with the third dose sub-divided according to the vaccine regimen: 3 x Pfizer, or 2 x ChAdOx + Pfizer, and by period: Delta (pre-December 2021) or Omicron (post-December 2021).
+
+Follow-up time for those within 90 days of a primary infection was removed. The "ChAdOx + Pfizer dose 3, 0-6 days, Omicron" category was removed due to insufficient observations.
+
+```{r ve, fig.width=10, warning=FALSE, message=FALSE}
+
+# define variables
+dependent = "Surv(tstart, tstop, event)"
+explanatory_uni = "vaccine_cat"
+explanatory_multi = c("vaccine_cat", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "strata(occ_set)", "cluster(trust_code)")
+
+# format data
+model_data <- split_ve %>% mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)) %>% 
+    filter(eligible == 1, primary_inf==0, vaccine_cat!="ChAdOx + Pfizer dose 3, 0-6 days, Omicron") %>% 
+    mutate(vaccine_cat = fct_drop(vaccine_cat))
+
+# kaplan meier survival curves
+survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
+                  data = model_data) %>% 
+    broom::tidy() %>% 
+    ggplot()+
+    aes(time, estimate, color = strata)+
+    geom_step()+
+    theme_minimal()
+
+# test proportional hazards assumption
+# not significant - indicates proportional hazards assumption holds
+uni_ph <- model_data %>% 
+    coxphmulti(dependent, explanatory_uni) %>% 
+    cox.zph()
+
+uni_ph$table %>% knitr::kable(caption = "Proportional hazards for univariable model")
+
+multi_ph <- model_data %>% 
+    coxphmulti(dependent, explanatory_multi) %>% 
+    cox.zph()
+
+multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
+
+# table, finalfit provides both unadjusted and adjusted hazards
+model_data %>% finalfit(dependent, explanatory_multi) %>% 
+    flextable() %>% 
+    autofit()
+
+# if we wish to match the standard error calculation from Stata:
+# sqrt(diag(vcov(siren_cox))* (135/134))
+
+```
+
+```{r ve-fig, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
+
+# figure
+model_data %>% 
+    hr_plot(dependent, explanatory_multi, dependent_label = "Survival")
+
+```
+
+## 2. Positive cohort
+
+As above, except considering those who are positive at cohort entry, or become positive prior to first vaccine dose.
+
+The comparator group is kept as unvaccinated naive.
+
+```{r ve-pos, fig.width=10, warning=FALSE, message=FALSE}
+
+ve_label_pos <- c("Unvaccinated, naive", ve_label)
+
+# define variables
+dependent = "Surv(tstart, tstop, event)"
+explanatory_uni = "vaccine_cat"
+explanatory_multi = c("vaccine_cat", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "strata(occ_set)", "cluster(trust_code)")
+
+# format data
+model_data <- split_ve %>% 
+        mutate(
+            vaccine_cat = if_else(primary_inf==0 & vaccine_cat==0, 0, as.double(vaccine_cat)),
+            vaccine_cat = factor(vaccine_cat, labels = ve_label_pos)) %>% 
+    filter(
+        eligible == 1, 
+        (primary_inf==2 | vaccine_cat=="Unvaccinated, naive"), 
+        vaccine_cat!="ChAdOx + Pfizer dose 3, 0-6 days, Omicron") %>% 
+    mutate(vaccine_cat = fct_drop(vaccine_cat))
+
+# kaplan meier survival curves
+survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
+                  data = model_data) %>% 
+    broom::tidy() %>% 
+    ggplot()+
+    aes(time, estimate, color = strata)+
+    geom_step()+
+    theme_minimal()
+
+# test proportional hazards assumption
+# not significant - indicates proportional hazards assumption holds
+uni_ph <- model_data %>% 
+    coxphmulti(dependent, explanatory_uni) %>% 
+    cox.zph()
+
+uni_ph$table %>% knitr::kable(caption = "Proportional hazards for univariable model")
+
+multi_ph <- model_data %>% 
+    coxphmulti(dependent, explanatory_multi) %>% 
+    cox.zph()
+
+multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
+
+# table, finalfit provides both unadjusted and adjusted hazards
+model_data %>% finalfit(dependent, explanatory_multi) %>% 
+    flextable() %>% 
+    autofit()
+
+# if we wish to match the standard error calculation from Stata:
+# sqrt(diag(vcov(siren_cox))* (135/134))
+
+```
+
+```{r ve-fig-pos, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
+
+# figure
+model_data %>% 
+    hr_plot(dependent, explanatory_multi, dependent_label = "Survival")
+
+```
+
+
+1.	Divide in primary infection <1year and >1year.
+2.	Probably move Omicron period to 10-15 December 2021 (currently is one).
+3.	Create Omicron/Alpha-Delta divide for unvaccinated as well.
+4.	Possibly start analysis in December, when Omicron starts.
+5.	Include people who enrolled after infection and vaccination in the positive cohort.
+6.	Move people who start in the negative cohort and are infected after vaccination to the positive cohort.
+
+
+
+## Session info
+
+```{r session-info, results='asis'}
+
+sessionInfo() %>%
+    pander::pander()
+
+```
