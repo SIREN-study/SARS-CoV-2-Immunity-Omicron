@@ -5,6 +5,6 @@ This repository contains the Stata and R code used to undertake vaccine effectiv
 ## Software versions
 - STATA (version 15.1; StataCorp LLC, College Station, TX, USA) 
 - R (v. 4.1.2; R Foundation for Statistical Computing, Vienna, Austria) 
-- Survival package (v.3.2-13; Therneau T (2021). _A Package for Survival Analysis in R_.)
+- Survival package (v.3.3-1; Therneau T (2021). _A Package for Survival Analysis in R_.)
 
 &copy; Crown copyright

@@ -9,45 +9,55 @@ output:
         toc:          true
 ---
 
-```{r, include=FALSE}
+```{r setup, include=FALSE}
 
 # libraries
 library(tidyverse)
 library(survival)
 library(finalfit)
 library(flextable)
+library(patchwork)
 
 # load data
 load("~/coviddata/siren_post_processing.RData")
 
 ```
 
-```{r labels-functions}
+```{r labels}
 
 # define labels
 ve_label <- c(
     "Unvaccinated",
-    "Pfizer dose 1, 0-20 days",
-    "Pfizer dose 1, >20 days",
-    "Pfizer dose 2, 0-13 days",
-    "Pfizer dose 2, 14-193 days",
-    "Pfizer dose 2, >193 days, Delta",
-    "Pfizer dose 3, 0-6 days, Delta",
-    "Pfizer dose 3, 7+ days, Delta",
-    "ChAdOx + Pfizer dose 3, 0-6 days, Delta",
-    "ChAdOx + Pfizer dose 3, 7+ days, Delta",
-    "Pfizer dose 2, >193 days, Omicron",
-    "Pfizer dose 3, 0-6 days, Omicron",
-    "Pfizer dose 3, 6-66 days, Omicron",
-    "Pfizer dose 3, 67+ days, Omicron",
-    "ChAdOx + Pfizer dose 3, 0-6 days, Omicron",
-    "ChAdOx + Pfizer dose 3, 6-66 days, Omicron",
-    "ChAdOx + Pfizer dose 3, 67+ days, Omicron"
+    "d1 0-20 PF",
+    "d1 20+ PF",
+    "d2 0-13 PF",
+    "d2 14-73 PF",
+    "d2 74-133 PF",
+    "d2 134-193 PF",
+    "d2 194-253 PF",
+    "d2 254+ PF",
+    "d3 0-6 3PF",
+    "d3 7-66 3PF",
+    "d3 67-126 3PF",
+    "d3 127+ 3PF",
+    "d2 0-13 AZ",
+    "d2 14-73 AZ",
+    "d2 74-133 AZ",
+    "d2 134-193 AZ",
+    "d2 194+ AZ",
+    "d3 0-6 3AZ",
+    "d3 7-66 3AZ",
+    "d3 67+ 3AZ",
+    "d3 0-6 2AZ/1PF",
+    "d3 7-66 2AZ/1PF",
+    "d3 67+ 2AZ/1PF"
 )
+
+pi_label <- c("Naive", "3-6 months","6-9 months","9-12 months","12-15 months","15+ months")
 
 ```
 
-This document presents Cox Proportional Hazards estimates for the SIREN interim analysis dataset (SIREN_Interim3_20220104.dta). This analysis replicates a set of Stata analyses, thereby providing independent verification.
+This document presents Cox proportional hazards estimates for the SIREN interim analysis dataset (SIREN_Interim3_20220228.dta). This analysis replicates a set of Stata analyses, thereby providing independent verification.
 
 Survival analysis datasets with multiple intervals for each participant and corresponding covariate values were prepared using the `survival` package (_Therneau T_) and formatted using the `finalfit` package (_Harrison E, Drake T, and Ots R_).
 
@@ -57,25 +67,65 @@ Minor differences exist between the Stata and `survival` package implementations
 
 - Clustering on NHS trust is used for robust variance calculation. When using clustering, Stata makes an adjustment to the standard errors - multiplying by g/(g − 1), where g is the number of clusters - whereas the `survival` package does not make this adjustment. We decided to use the adjusted standard errors.
 
-## 1. Naive cohort
+## 1. Alpha Delta period
 
-The vaccination categories were: unvaccinated, 0/20 days post-first dose, 0/14/194 days post-second dose, and 0/7/67 days post-third dose.
+Analysis for the pre-Omicron period (7th December 2020 - 30th November 2021). 
 
-The first two doses considered Pfizer only, with the third dose sub-divided according to the vaccine regimen: 3 x Pfizer, or 2 x ChAdOx + Pfizer, and by period: Delta (pre-December 2021) or Omicron (post-December 2021).
+The vaccination and primary infection categories are shown below. Efficacy of prior infection with an alternate categorisation is also included. To assess protection following prior infection, individuals with a primary infection occurring prior to 1st September 2021 re-entered the dataset after 90 days.
 
-Follow-up time for those within 90 days of a primary infection was removed. The "ChAdOx + Pfizer dose 3, 0-6 days, Omicron" category was removed due to insufficient observations.
+### Data and proportional hazards test
 
 ```{r ve, fig.width=10, warning=FALSE, message=FALSE}
 
 # define variables
 dependent = "Surv(tstart, tstop, event)"
 explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "strata(occ_set)", "cluster(trust_code)")
+explanatory_multi = c("vaccine_cat", "primary_inf", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
-model_data <- split_ve %>% mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)) %>% 
-    filter(eligible == 1, primary_inf==0, vaccine_cat!="ChAdOx + Pfizer dose 3, 0-6 days, Omicron") %>% 
-    mutate(vaccine_cat = fct_drop(vaccine_cat))
+model_data <- split_ve %>% 
+    mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)) %>% 
+    filter(eligible == 1,
+           alpha_delta == 1,
+           vaccine_cat %in% c("Unvaccinated",
+                              "d2 0-13 PF",
+                              "d2 14-73 PF",
+                              "d2 74-133 PF",
+                              "d2 134-193 PF",
+                              "d2 194-253 PF",
+                              "d2 254+ PF",
+                              "d3 7-66 3PF",
+                              "d2 14-73 AZ",
+                              "d2 74-133 AZ",
+                              "d2 134-193 AZ",
+                              "d2 194+ AZ",
+                              "d3 7-66 3AZ",
+                              "d3 7-66 2AZ/1PF")) %>% 
+    mutate(vaccine_cat = fct_collapse(vaccine_cat, "d2 194+ PF" = c("d2 194-253 PF", "d2 254+ PF")),
+           vaccine_cat = fct_drop(vaccine_cat),
+           primary_inf = factor(primary_inf, labels = pi_label)
+           )
+
+# check vaccine category groupings
+model_data %>%
+    group_by(vaccine_cat) %>%
+    summarise(
+        particiants = n_distinct(study_id),
+        events = sum(event),
+        exposure = sum(tstop - tstart)
+    ) %>%
+    flextable() %>% 
+    autofit()
+
+model_data %>%
+    group_by(primary_inf) %>%
+    summarise(
+        particiants = n_distinct(study_id),
+        events = sum(event),
+        exposure = sum(tstop - tstart)
+    ) %>%
+    flextable() %>% 
+    autofit()
 
 # kaplan meier survival curves
 survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
@@ -84,6 +134,7 @@ survfit(as.formula(paste0(dependent, "~", explanatory_uni)),
     ggplot()+
     aes(time, estimate, color = strata)+
     geom_step()+
+    labs(title = "Kaplan-Meier survival curve")+
     theme_minimal()
 
 # test proportional hazards assumption
@@ -101,14 +152,16 @@ multi_ph <- model_data %>%
 multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
 
 # table, finalfit provides both unadjusted and adjusted hazards
-model_data %>% finalfit(dependent, explanatory_multi) %>% 
-    flextable() %>% 
-    autofit()
+# model_data %>% finalfit(dependent, explanatory_multi) %>% 
+#     flextable() %>% 
+#     autofit()
 
 # if we wish to match the standard error calculation from Stata:
 # sqrt(diag(vcov(siren_cox))* (135/134))
 
 ```
+
+### Hazard ratios from multivariable model
 
 ```{r ve-fig, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
 
@@ -118,31 +171,126 @@ model_data %>%
 
 ```
 
-## 2. Positive cohort
+```{r efficacy}
 
-As above, except considering those who are positive at cohort entry, or become positive prior to first vaccine dose.
+cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
-The comparator group is kept as unvaccinated naive.
+# vaccination
+# cox_result %>% 
+#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+#     filter(grepl("vaccine", term)) %>% 
+#     mutate(term = sub("vaccine_cat","",term),
+#            term = factor(term, levels = c("Unvaccinated",
+#                               "d2 0-13 PF",
+#                               "d2 14-73 PF",
+#                               "d2 74-133 PF",
+#                               "d2 134-193 PF",
+#                               "d2 194+ PF",
+#                               "d3 7-66 3PF",
+#                               "d2 14-73 AZ",
+#                               "d2 74-133 AZ",
+#                               "d2 134-193 AZ",
+#                               "d2 194+ AZ",
+#                               "d3 7-66 3AZ",
+#                               "d3 7-66 2AZ/1PF"))) %>% 
+#     ggplot() + 
+#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+#     geom_point() +
+#     geom_linerange() +
+#     labs(x = "", y = "1 - HR", title = "Efficacy of vaccination against infection during Alpha/Delta period", subtitle = "Reference: Unvaccinated") +
+#     coord_cartesian(ylim = c(0,1)) +
+#     theme_minimal()+
+#     theme(axis.text.x = element_text(angle = 45, hjust=1))
 
-```{r ve-pos, fig.width=10, warning=FALSE, message=FALSE}
+# prior infection
+p2 <- cox_result %>% 
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+    filter(grepl("primary", term)) %>% 
+    mutate(term = sub("primary_inf","",term),
+           term = factor(term, levels = pi_label)) %>% 
+    ggplot() + 
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+    geom_point() +
+    geom_linerange() +
+    labs(x = "", y = "1 - HR", subtitle = "A. Fine timescale") +
+    coord_cartesian(ylim = c(0,1)) +
+    theme_minimal()
 
-ve_label_pos <- c("Unvaccinated, naive", ve_label)
+model_data <- model_data %>% 
+    mutate(primary_inf = fct_collapse(primary_inf, "<12 months" = c("3-6 months","6-9 months","9-12 months"),
+                                                   "12+ months" = c("12-15 months","15+ months")))
+
+# prior infection, 1 year cutoff
+cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
+
+p3 <- cox_result %>% 
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+    filter(grepl("primary", term)) %>% 
+    mutate(term = sub("primary_inf","",term)) %>% 
+    ggplot() + 
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+    geom_point() +
+    geom_linerange() +
+    labs(x = "", y = "1 - HR", subtitle = "B. Course timescale") +
+    coord_cartesian(ylim = c(0,1)) +
+    theme_minimal()
+
+p2 + p3 + plot_annotation(title = "Efficacy of prior infection against future infection during Alpha/Delta period", caption = "Reference group: Naive") + plot_layout(widths = c(2, 1))
+
+```
+
+## 2. Omicron period
+
+Analysis for the Omicron period (10th December 2021 - 28th February 2022). 
+
+The vaccination and primary infection categories are shown below. Efficacy of prior infection with an alternate categorisation is also included. To assess protection following prior infection, individuals with a primary infection occurring prior to 1st September 2021 re-entered the dataset after 90 days.
+
+### Data and proportional hazards test
+
+```{r ve-om, fig.width=10, warning=FALSE, message=FALSE}
 
 # define variables
 dependent = "Surv(tstart, tstop, event)"
 explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "strata(occ_set)", "cluster(trust_code)")
+explanatory_multi = c("vaccine_cat", "primary_inf", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
 model_data <- split_ve %>% 
-        mutate(
-            vaccine_cat = if_else(primary_inf==0 & vaccine_cat==0, 0, as.double(vaccine_cat)),
-            vaccine_cat = factor(vaccine_cat, labels = ve_label_pos)) %>% 
-    filter(
-        eligible == 1, 
-        (primary_inf==2 | vaccine_cat=="Unvaccinated, naive"), 
-        vaccine_cat!="ChAdOx + Pfizer dose 3, 0-6 days, Omicron") %>% 
-    mutate(vaccine_cat = fct_drop(vaccine_cat))
+    mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)
+           ) %>% 
+    filter(eligible == 1,
+           omicron == 1,
+           vaccine_cat %in% c("d2 254+ PF",
+                              "d3 7-66 3PF",
+                              "d3 67-126 3PF",
+                              "d3 127+ 3PF",
+                              "d2 194+ AZ",
+                              "d3 7-66 2AZ/1PF",
+                              "d3 67+ 2AZ/1PF")) %>% 
+    mutate(vaccine_cat = fct_drop(vaccine_cat),
+           primary_inf = factor(primary_inf, labels = pi_label))
+
+# check vaccine category groupings
+model_data %>%
+    group_by(vaccine_cat) %>%
+    summarise(
+        particiants = n_distinct(study_id),
+        events = sum(event),
+        exposure = sum(tstop - tstart)
+    ) %>%
+    flextable() %>% 
+    autofit()
+
+# primary infection category groupings
+model_data %>%
+    group_by(primary_inf) %>%
+    summarise(
+        particiants = n_distinct(study_id),
+        events = sum(event),
+        exposure = sum(tstop - tstart)
+    ) %>%
+    flextable() %>% 
+    autofit()
 
 # kaplan meier survival curves
 survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
@@ -151,6 +299,7 @@ survfit(as.formula(paste0(dependent, "~", explanatory_uni)),
     ggplot()+
     aes(time, estimate, color = strata)+
     geom_step()+
+    labs(title = "Kaplan-Meier survival curve")+
     theme_minimal()
 
 # test proportional hazards assumption
@@ -168,16 +317,18 @@ multi_ph <- model_data %>%
 multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
 
 # table, finalfit provides both unadjusted and adjusted hazards
-model_data %>% finalfit(dependent, explanatory_multi) %>% 
-    flextable() %>% 
-    autofit()
+# model_data %>% finalfit(dependent, explanatory_multi) %>% 
+#     flextable() %>% 
+#     autofit()
 
 # if we wish to match the standard error calculation from Stata:
 # sqrt(diag(vcov(siren_cox))* (135/134))
 
 ```
 
-```{r ve-fig-pos, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
+### Hazard ratios from multivariable model
+
+```{r ve-fig-om, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
 
 # figure
 model_data %>% 
@@ -185,14 +336,63 @@ model_data %>%
 
 ```
 
+```{r om-efficacy}
 
-1.	Divide in primary infection <1year and >1year.
-2.	Probably move Omicron period to 10-15 December 2021 (currently is one).
-3.	Create Omicron/Alpha-Delta divide for unvaccinated as well.
-4.	Possibly start analysis in December, when Omicron starts.
-5.	Include people who enrolled after infection and vaccination in the positive cohort.
-6.	Move people who start in the negative cohort and are infected after vaccination to the positive cohort.
+cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
+# # vaccination
+# cox_result %>% 
+#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+#     filter(grepl("vaccine", term)) %>% 
+#     mutate(term = sub("vaccine_cat","",term),
+#            term = factor(term, levels = ve_label)) %>% 
+#     ggplot() + 
+#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high, label= round(1-estimate,2)) + 
+#     geom_point() +
+#     geom_linerange() +
+#     geom_text(y = 1)+
+#     labs(x = "", y = "1 - HR", title = "Efficacy of vaccination against infection during Omicron period", subtitle = "Reference: Unvaccinated") +
+#     coord_cartesian(ylim = c(0,1)) +
+#     theme_minimal()+
+#     theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+# prior infection
+p2 <- cox_result %>% 
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+    filter(grepl("primary", term)) %>% 
+    mutate(term = sub("primary_inf","",term),
+           term = factor(term, levels = pi_label)) %>% 
+    ggplot() + 
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+    geom_point(color = "#F8766D") +
+    geom_linerange(color = "#F8766D") +
+    labs(x = "", y = "1 - HR", subtitle = "A. Fine timescale") +
+    coord_cartesian(ylim = c(0,1)) +
+    theme_minimal()
+
+
+# prior infection, 1 year cutoff
+model_data <- model_data %>% 
+    mutate(primary_inf = fct_collapse(primary_inf, "<12 months" = c("3-6 months","6-9 months","9-12 months"),
+                                                   "12+ months" = c("12-15 months","15+ months")))
+
+cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
+
+p3 <- cox_result %>% 
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
+    filter(grepl("primary", term)) %>% 
+    mutate(term = sub("primary_inf","",term)) %>% 
+    ggplot() + 
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+    geom_point(color = "#F8766D") +
+    geom_linerange(color = "#F8766D") +
+    labs(x = "", y = "1 - HR", subtitle = "B. Course timescale") +
+    coord_cartesian(ylim = c(0,1)) +
+    theme_minimal()
+
+p2 + p3 + plot_annotation(title = "Efficacy of prior infection against future infection during Omicron period", caption = "Reference group: Naive") + plot_layout(widths = c(2, 1))
+
+```
 
 
 ## Session info

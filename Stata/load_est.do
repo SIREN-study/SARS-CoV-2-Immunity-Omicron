@@ -4,6 +4,12 @@ stcox
 est use "C:\Users\peter.kirwan\Documents\Repos\SARS-CoV-2-Immunity_v2\Stata\posc.ster"
 stcox
 
+est use "C:\Users\peter.kirwan\Documents\Repos\immunity-v2\Stata\Alpha_Delta_PI.ster"
+stcox
+
+est use "C:\Users\peter.kirwan\Documents\Repos\immunity-v2\Stata\Omicron_PI.ster"
+stcox
+
 // exposure event rates
 use "C:\Users\peter.kirwan\Documents\Repos\SARS-CoV-2-Immunity_v2\data\SIREN_interim3_20220104.dta"
 

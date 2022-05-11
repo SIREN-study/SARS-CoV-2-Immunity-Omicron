@@ -10,9 +10,10 @@ library(readstata13)
 library(tidyverse)
 library(janitor)
 library(here)
+library(lubridate)
 
 # load data
-siren_raw <- read.dta13(here("data/SIREN_Interim3_20220228.dta")) %>%
+siren_raw <- read.dta13("~/coviddata/SIREN_Interim3_20220228.dta") %>%
     clean_names() %>%
     rename(
         start_date_pos_c = start_date_pos_c_fin,
@@ -38,11 +39,11 @@ siren_cohort <- siren_raw %>%
         (vaccine_date1 < vaccine_date3 | is.na(vaccine_date3) | is.na(vaccine_date1)),
         (vaccine_date2 < vaccine_date3 | is.na(vaccine_date3) | is.na(vaccine_date2)),
         (is.na(second_pcr_pos_date) | second_pcr_pos_date >= ar), # exclude people who have second infection prior to joining study
-        !(start_date_pos_c > vaccine_date1 & !is.na(start_date_pos_c) & !is.na(vaccine_date1)), # screen out people who become positive after vaccination
+        #!(start_date_pos_c > vaccine_date1 & !is.na(start_date_pos_c) & !is.na(vaccine_date1)), # screen out people who become positive after vaccination
         !(cohort_final==1 & is.na(start_date_pos_c)) # exclude people in positive cohort but with unknown infection date
     )
 
-# n = 38,632
+# n = 38,993
 
 # generate the time and event fields for each participant
 siren <- siren_cohort %>%
@@ -51,7 +52,8 @@ siren <- siren_cohort %>%
         siren_cohort %>%
             filter(
                 cohort_final == 0, !is.na(first_pcr_pos_date),
-                (first_pcr_pos_date < vaccine_date1 | is.na(vaccine_date1)),
+                first_pcr_pos_date <= as_date("2021-09-01"),
+                #(first_pcr_pos_date < vaccine_date1 | is.na(vaccine_date1)),
                 ar < first_pcr_pos_date
             ) %>%
             mutate(
@@ -83,6 +85,8 @@ siren <- siren_cohort %>%
         time > ar
     )
 
+# 40,430 records
+
 # generate relative time variables to use in Cox proportional hazards model
 siren <- siren %>%
     mutate(
@@ -105,7 +109,7 @@ siren <- siren %>%
                                                      "Intensive care","Theatres","Other"))
     )
 
-siren %>% count() # n = 38,904 records
+siren %>% count() # n = 40,430 records
 
 saveRDS(siren, here("data/siren_pre_processing.RDS"))
 
