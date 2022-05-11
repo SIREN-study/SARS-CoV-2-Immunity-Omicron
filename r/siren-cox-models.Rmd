@@ -80,7 +80,7 @@ The vaccination and primary infection categories are shown below. Efficacy of pr
 # define variables
 dependent = "Surv(tstart, tstop, event)"
 explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "primary_inf", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
+explanatory_multi = c("vaccine_cat", "primary_inf", "staff_type", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
 model_data <- split_ve %>% 
@@ -252,7 +252,7 @@ The vaccination and primary infection categories are shown below. Efficacy of pr
 # define variables
 dependent = "Surv(tstart, tstop, event)"
 explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "primary_inf", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
+explanatory_multi = c("vaccine_cat", "primary_inf", "staff_type", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
 model_data <- split_ve %>% 
