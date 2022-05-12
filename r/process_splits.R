@@ -23,8 +23,8 @@ split_ve <- tmerge(
     tstop = time,
     event = event(time, event),
     eligible = tdc(ar),
-    alpha_delta = tdc(rep(359,len)), # 1st December 2021 cutoff
-    omicron = tdc(rep(369,len)), # 10th December 2021 cutoff
+    alpha_delta = tdc(rep(359, len)), # 1st December 2021 cutoff
+    omicron = tdc(rep(369, len)), # 10th December 2021 cutoff
     primary_inf = cumtdc(start_date_pos_c),
     primary_inf = cumtdc(start_date_pos_c + 90),
     primary_inf = cumtdc(start_date_pos_c + 182),
@@ -83,22 +83,23 @@ split_ve <- tmerge(
         alpha_delta = 1 - alpha_delta, # recode alpha_delta flag
 
         # eligibility checks
-        eligible = case_when(cohort_final == 9 ~ as.integer(0), # don't consider unknown cohort
-                             primary_inf == 1 ~ as.integer(0), # don't consider reinfection within 90 days
-                             # non-AZ or PF vaccines
-                             vaccine_name1 != "AstraZeneca" & vaccine_name1 != "Pfizer-BioNTech" & vaccine >= 1 ~ as.integer(0),
-                             vaccine_name2 != "AstraZeneca" & vaccine_name2 != "Pfizer-BioNTech" & vaccine >= 3 ~ as.integer(0),
-                             vaccine_name3 != "AstraZeneca" & vaccine_name3 != "Pfizer-BioNTech" & vaccine >= 9 ~ as.integer(0),
-
-                             vaccine_name1 == "AstraZeneca" & vaccine %in% c(1, 2) ~ as.integer(0), # single AZ vaccine
-                             vaccine_name1 != vaccine_name2 & vaccine >= 3 ~ as.integer(0), # different first and second vaccine
-                             vaccine_name1 == "Pfizer-BioNTech" & vaccine_name2 == "Pfizer-BioNTech" & vaccine_name3 == "AstraZeneca" & vaccine >= 9 ~ as.integer(0), # PF followed by AZ
-                             TRUE ~ eligible)
+        eligible = case_when(
+            cohort_final == 9 ~ as.integer(0), # don't consider unknown cohort
+            primary_inf == 1 ~ as.integer(0), # don't consider reinfection within 90 days
+            # non-AZ or PF vaccines
+            vaccine_name1 != "AstraZeneca" & vaccine_name1 != "Pfizer-BioNTech" & vaccine >= 1 ~ as.integer(0),
+            vaccine_name2 != "AstraZeneca" & vaccine_name2 != "Pfizer-BioNTech" & vaccine >= 3 ~ as.integer(0),
+            vaccine_name3 != "AstraZeneca" & vaccine_name3 != "Pfizer-BioNTech" & vaccine >= 9 ~ as.integer(0),
+            vaccine_name1 == "AstraZeneca" & vaccine %in% c(1, 2) ~ as.integer(0), # single AZ vaccine
+            vaccine_name1 != vaccine_name2 & vaccine >= 3 ~ as.integer(0), # different first and second vaccine
+            vaccine_name1 == "Pfizer-BioNTech" & vaccine_name2 == "Pfizer-BioNTech" & vaccine_name3 == "AstraZeneca" & vaccine >= 9 ~ as.integer(0), # PF followed by AZ
+            TRUE ~ eligible
+        )
     )
 
 # check exposure and events in each category
 split_ve %>%
-    filter(eligible == 1, alpha_delta==1) %>%
+    filter(eligible == 1, alpha_delta == 1) %>%
     group_by(vaccine_cat) %>%
     summarise(
         particiants = n_distinct(study_id),
@@ -108,12 +109,13 @@ split_ve %>%
     print(n = 100)
 
 split_ve %>%
-    filter(eligible == 1, omicron==1, vaccine_cat %in% c(8,9,10,11,12,17,21,22,23)) %>%
+    filter(eligible == 1, omicron == 1, vaccine_cat %in% c(8, 9, 10, 11, 12, 17, 21, 22, 23)) %>%
     group_by(vaccine_cat) %>%
     summarise(
         particiants = n_distinct(study_id),
         events = sum(event),
         exposure = sum(tstop - tstart)
-    ) %>% print(n = 100)
+    ) %>%
+    print(n = 100)
 
 save(split_ve, siren, file = "~/coviddata/siren_post_processing.RData")

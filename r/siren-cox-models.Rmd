@@ -20,7 +20,6 @@ library(patchwork)
 
 # load data
 load("~/coviddata/siren_post_processing.RData")
-
 ```
 
 ```{r labels}
@@ -53,8 +52,7 @@ ve_label <- c(
     "d3 67+ 2AZ/1PF"
 )
 
-pi_label <- c("Naive", "3-6 months","6-9 months","9-12 months","12-15 months","15+ months")
-
+pi_label <- c("Naive", "3-6 months", "6-9 months", "9-12 months", "12-15 months", "15+ months")
 ```
 
 This document presents Cox proportional hazards estimates for the SIREN interim analysis dataset (SIREN_Interim3_20220228.dta). This analysis replicates a set of Stata analyses, thereby providing independent verification.
@@ -78,33 +76,38 @@ The vaccination and primary infection categories are shown below. Efficacy of pr
 ```{r ve, fig.width=10, warning=FALSE, message=FALSE}
 
 # define variables
-dependent = "Surv(tstart, tstop, event)"
-explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "primary_inf", "staff_type", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
+dependent <- "Surv(tstart, tstop, event)"
+explanatory_uni <- "vaccine_cat"
+explanatory_multi <- c("vaccine_cat", "primary_inf", "staff_type", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
-model_data <- split_ve %>% 
-    mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)) %>% 
-    filter(eligible == 1,
-           alpha_delta == 1,
-           vaccine_cat %in% c("Unvaccinated",
-                              "d2 0-13 PF",
-                              "d2 14-73 PF",
-                              "d2 74-133 PF",
-                              "d2 134-193 PF",
-                              "d2 194-253 PF",
-                              "d2 254+ PF",
-                              "d3 7-66 3PF",
-                              "d2 14-73 AZ",
-                              "d2 74-133 AZ",
-                              "d2 134-193 AZ",
-                              "d2 194+ AZ",
-                              "d3 7-66 3AZ",
-                              "d3 7-66 2AZ/1PF")) %>% 
-    mutate(vaccine_cat = fct_collapse(vaccine_cat, "d2 194+ PF" = c("d2 194-253 PF", "d2 254+ PF")),
-           vaccine_cat = fct_drop(vaccine_cat),
-           primary_inf = factor(primary_inf, labels = pi_label)
-           )
+model_data <- split_ve %>%
+    mutate(vaccine_cat = factor(vaccine_cat, labels = ve_label)) %>%
+    filter(
+        eligible == 1,
+        alpha_delta == 1,
+        vaccine_cat %in% c(
+            "Unvaccinated",
+            "d2 0-13 PF",
+            "d2 14-73 PF",
+            "d2 74-133 PF",
+            "d2 134-193 PF",
+            "d2 194-253 PF",
+            "d2 254+ PF",
+            "d3 7-66 3PF",
+            "d2 14-73 AZ",
+            "d2 74-133 AZ",
+            "d2 134-193 AZ",
+            "d2 194+ AZ",
+            "d3 7-66 3AZ",
+            "d3 7-66 2AZ/1PF"
+        )
+    ) %>%
+    mutate(
+        vaccine_cat = fct_collapse(vaccine_cat, "d2 194+ PF" = c("d2 194-253 PF", "d2 254+ PF")),
+        vaccine_cat = fct_drop(vaccine_cat),
+        primary_inf = factor(primary_inf, labels = pi_label)
+    )
 
 # check vaccine category groupings
 model_data %>%
@@ -114,7 +117,7 @@ model_data %>%
         events = sum(event),
         exposure = sum(tstop - tstart)
     ) %>%
-    flextable() %>% 
+    flextable() %>%
     autofit()
 
 model_data %>%
@@ -124,41 +127,41 @@ model_data %>%
         events = sum(event),
         exposure = sum(tstop - tstart)
     ) %>%
-    flextable() %>% 
+    flextable() %>%
     autofit()
 
 # kaplan meier survival curves
-survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
-                  data = model_data) %>% 
-    broom::tidy() %>% 
-    ggplot()+
-    aes(time, estimate, color = strata)+
-    geom_step()+
-    labs(title = "Kaplan-Meier survival curve")+
+survfit(as.formula(paste0(dependent, "~", explanatory_uni)),
+    data = model_data
+) %>%
+    broom::tidy() %>%
+    ggplot() +
+    aes(time, estimate, color = strata) +
+    geom_step() +
+    labs(title = "Kaplan-Meier survival curve") +
     theme_minimal()
 
 # test proportional hazards assumption
 # not significant - indicates proportional hazards assumption holds
-uni_ph <- model_data %>% 
-    coxphmulti(dependent, explanatory_uni) %>% 
+uni_ph <- model_data %>%
+    coxphmulti(dependent, explanatory_uni) %>%
     cox.zph()
 
 uni_ph$table %>% knitr::kable(caption = "Proportional hazards for univariable model")
 
-multi_ph <- model_data %>% 
-    coxphmulti(dependent, explanatory_multi) %>% 
+multi_ph <- model_data %>%
+    coxphmulti(dependent, explanatory_multi) %>%
     cox.zph()
 
 multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
 
 # table, finalfit provides both unadjusted and adjusted hazards
-# model_data %>% finalfit(dependent, explanatory_multi) %>% 
-#     flextable() %>% 
+# model_data %>% finalfit(dependent, explanatory_multi) %>%
+#     flextable() %>%
 #     autofit()
 
 # if we wish to match the standard error calculation from Stata:
 # sqrt(diag(vcov(siren_cox))* (135/134))
-
 ```
 
 ### Hazard ratios from multivariable model
@@ -166,9 +169,8 @@ multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariabl
 ```{r ve-fig, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
 
 # figure
-model_data %>% 
+model_data %>%
     hr_plot(dependent, explanatory_multi, dependent_label = "Survival")
-
 ```
 
 ```{r efficacy}
@@ -176,9 +178,9 @@ model_data %>%
 cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
 # vaccination
-# cox_result %>% 
-#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-#     filter(grepl("vaccine", term)) %>% 
+# cox_result %>%
+#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+#     filter(grepl("vaccine", term)) %>%
 #     mutate(term = sub("vaccine_cat","",term),
 #            term = factor(term, levels = c("Unvaccinated",
 #                               "d2 0-13 PF",
@@ -192,9 +194,9 @@ cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 #                               "d2 134-193 AZ",
 #                               "d2 194+ AZ",
 #                               "d3 7-66 3AZ",
-#                               "d3 7-66 2AZ/1PF"))) %>% 
-#     ggplot() + 
-#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+#                               "d3 7-66 2AZ/1PF"))) %>%
+#     ggplot() +
+#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) +
 #     geom_point() +
 #     geom_linerange() +
 #     labs(x = "", y = "1 - HR", title = "Efficacy of vaccination against infection during Alpha/Delta period", subtitle = "Reference: Unvaccinated") +
@@ -203,40 +205,43 @@ cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 #     theme(axis.text.x = element_text(angle = 45, hjust=1))
 
 # prior infection
-p2 <- cox_result %>% 
-    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-    filter(grepl("primary", term)) %>% 
-    mutate(term = sub("primary_inf","",term),
-           term = factor(term, levels = pi_label)) %>% 
-    ggplot() + 
-    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+p2 <- cox_result %>%
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(grepl("primary", term)) %>%
+    mutate(
+        term = sub("primary_inf", "", term),
+        term = factor(term, levels = pi_label)
+    ) %>%
+    ggplot() +
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) +
     geom_point() +
     geom_linerange() +
     labs(x = "", y = "1 - HR", subtitle = "A. Fine timescale") +
-    coord_cartesian(ylim = c(0,1)) +
+    coord_cartesian(ylim = c(0, 1)) +
     theme_minimal()
 
-model_data <- model_data %>% 
-    mutate(primary_inf = fct_collapse(primary_inf, "<12 months" = c("3-6 months","6-9 months","9-12 months"),
-                                                   "12+ months" = c("12-15 months","15+ months")))
+model_data <- model_data %>%
+    mutate(primary_inf = fct_collapse(primary_inf,
+        "<12 months" = c("3-6 months", "6-9 months", "9-12 months"),
+        "12+ months" = c("12-15 months", "15+ months")
+    ))
 
 # prior infection, 1 year cutoff
 cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
-p3 <- cox_result %>% 
-    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-    filter(grepl("primary", term)) %>% 
-    mutate(term = sub("primary_inf","",term)) %>% 
-    ggplot() + 
-    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+p3 <- cox_result %>%
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(grepl("primary", term)) %>%
+    mutate(term = sub("primary_inf", "", term)) %>%
+    ggplot() +
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) +
     geom_point() +
     geom_linerange() +
     labs(x = "", y = "1 - HR", subtitle = "B. Course timescale") +
-    coord_cartesian(ylim = c(0,1)) +
+    coord_cartesian(ylim = c(0, 1)) +
     theme_minimal()
 
 p2 + p3 + plot_annotation(title = "Efficacy of prior infection against future infection during Alpha/Delta period", caption = "Reference group: Naive") + plot_layout(widths = c(2, 1))
-
 ```
 
 ## 2. Omicron period
@@ -250,25 +255,30 @@ The vaccination and primary infection categories are shown below. Efficacy of pr
 ```{r ve-om, fig.width=10, warning=FALSE, message=FALSE}
 
 # define variables
-dependent = "Surv(tstart, tstop, event)"
-explanatory_uni = "vaccine_cat"
-explanatory_multi = c("vaccine_cat", "primary_inf", "staff_type", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
+dependent <- "Surv(tstart, tstop, event)"
+explanatory_uni <- "vaccine_cat"
+explanatory_multi <- c("vaccine_cat", "primary_inf", "staff_type", "gender", "ethngr", "strata(region)", "strata(agegr)", "strata(work_exposure_frequency)", "cluster(trust_code)")
 
 # format data
-model_data <- split_ve %>% 
-    mutate(vaccine_cat=factor(vaccine_cat, labels = ve_label)
-           ) %>% 
-    filter(eligible == 1,
-           omicron == 1,
-           vaccine_cat %in% c("d2 254+ PF",
-                              "d3 7-66 3PF",
-                              "d3 67-126 3PF",
-                              "d3 127+ 3PF",
-                              "d2 194+ AZ",
-                              "d3 7-66 2AZ/1PF",
-                              "d3 67+ 2AZ/1PF")) %>% 
-    mutate(vaccine_cat = fct_drop(vaccine_cat),
-           primary_inf = factor(primary_inf, labels = pi_label))
+model_data <- split_ve %>%
+    mutate(vaccine_cat = factor(vaccine_cat, labels = ve_label)) %>%
+    filter(
+        eligible == 1,
+        omicron == 1,
+        vaccine_cat %in% c(
+            "d2 254+ PF",
+            "d3 7-66 3PF",
+            "d3 67-126 3PF",
+            "d3 127+ 3PF",
+            "d2 194+ AZ",
+            "d3 7-66 2AZ/1PF",
+            "d3 67+ 2AZ/1PF"
+        )
+    ) %>%
+    mutate(
+        vaccine_cat = fct_drop(vaccine_cat),
+        primary_inf = factor(primary_inf, labels = pi_label)
+    )
 
 # check vaccine category groupings
 model_data %>%
@@ -278,7 +288,7 @@ model_data %>%
         events = sum(event),
         exposure = sum(tstop - tstart)
     ) %>%
-    flextable() %>% 
+    flextable() %>%
     autofit()
 
 # primary infection category groupings
@@ -289,41 +299,41 @@ model_data %>%
         events = sum(event),
         exposure = sum(tstop - tstart)
     ) %>%
-    flextable() %>% 
+    flextable() %>%
     autofit()
 
 # kaplan meier survival curves
-survfit(as.formula(paste0(dependent, "~", explanatory_uni)), 
-                  data = model_data) %>% 
-    broom::tidy() %>% 
-    ggplot()+
-    aes(time, estimate, color = strata)+
-    geom_step()+
-    labs(title = "Kaplan-Meier survival curve")+
+survfit(as.formula(paste0(dependent, "~", explanatory_uni)),
+    data = model_data
+) %>%
+    broom::tidy() %>%
+    ggplot() +
+    aes(time, estimate, color = strata) +
+    geom_step() +
+    labs(title = "Kaplan-Meier survival curve") +
     theme_minimal()
 
 # test proportional hazards assumption
 # not significant - indicates proportional hazards assumption holds
-uni_ph <- model_data %>% 
-    coxphmulti(dependent, explanatory_uni) %>% 
+uni_ph <- model_data %>%
+    coxphmulti(dependent, explanatory_uni) %>%
     cox.zph()
 
 uni_ph$table %>% knitr::kable(caption = "Proportional hazards for univariable model")
 
-multi_ph <- model_data %>% 
-    coxphmulti(dependent, explanatory_multi) %>% 
+multi_ph <- model_data %>%
+    coxphmulti(dependent, explanatory_multi) %>%
     cox.zph()
 
 multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariable model")
 
 # table, finalfit provides both unadjusted and adjusted hazards
-# model_data %>% finalfit(dependent, explanatory_multi) %>% 
-#     flextable() %>% 
+# model_data %>% finalfit(dependent, explanatory_multi) %>%
+#     flextable() %>%
 #     autofit()
 
 # if we wish to match the standard error calculation from Stata:
 # sqrt(diag(vcov(siren_cox))* (135/134))
-
 ```
 
 ### Hazard ratios from multivariable model
@@ -331,9 +341,8 @@ multi_ph$table %>% knitr::kable(caption = "Proportional hazards for multivariabl
 ```{r ve-fig-om, fig.height=10, fig.width=15, warning=FALSE, message=FALSE}
 
 # figure
-model_data %>% 
+model_data %>%
     hr_plot(dependent, explanatory_multi, dependent_label = "Survival")
-
 ```
 
 ```{r om-efficacy}
@@ -341,13 +350,13 @@ model_data %>%
 cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
 # # vaccination
-# cox_result %>% 
-#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-#     filter(grepl("vaccine", term)) %>% 
+# cox_result %>%
+#     broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+#     filter(grepl("vaccine", term)) %>%
 #     mutate(term = sub("vaccine_cat","",term),
-#            term = factor(term, levels = ve_label)) %>% 
-#     ggplot() + 
-#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high, label= round(1-estimate,2)) + 
+#            term = factor(term, levels = ve_label)) %>%
+#     ggplot() +
+#     aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high, label= round(1-estimate,2)) +
 #     geom_point() +
 #     geom_linerange() +
 #     geom_text(y = 1)+
@@ -357,41 +366,44 @@ cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 #     theme(axis.text.x = element_text(angle = 45, hjust=1))
 
 # prior infection
-p2 <- cox_result %>% 
-    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-    filter(grepl("primary", term)) %>% 
-    mutate(term = sub("primary_inf","",term),
-           term = factor(term, levels = pi_label)) %>% 
-    ggplot() + 
-    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+p2 <- cox_result %>%
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(grepl("primary", term)) %>%
+    mutate(
+        term = sub("primary_inf", "", term),
+        term = factor(term, levels = pi_label)
+    ) %>%
+    ggplot() +
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) +
     geom_point(color = "#F8766D") +
     geom_linerange(color = "#F8766D") +
     labs(x = "", y = "1 - HR", subtitle = "A. Fine timescale") +
-    coord_cartesian(ylim = c(0,1)) +
+    coord_cartesian(ylim = c(0, 1)) +
     theme_minimal()
 
 
 # prior infection, 1 year cutoff
-model_data <- model_data %>% 
-    mutate(primary_inf = fct_collapse(primary_inf, "<12 months" = c("3-6 months","6-9 months","9-12 months"),
-                                                   "12+ months" = c("12-15 months","15+ months")))
+model_data <- model_data %>%
+    mutate(primary_inf = fct_collapse(primary_inf,
+        "<12 months" = c("3-6 months", "6-9 months", "9-12 months"),
+        "12+ months" = c("12-15 months", "15+ months")
+    ))
 
 cox_result <- model_data %>% coxphmulti(dependent, explanatory_multi)
 
-p3 <- cox_result %>% 
-    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>% 
-    filter(grepl("primary", term)) %>% 
-    mutate(term = sub("primary_inf","",term)) %>% 
-    ggplot() + 
-    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) + 
+p3 <- cox_result %>%
+    broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%
+    filter(grepl("primary", term)) %>%
+    mutate(term = sub("primary_inf", "", term)) %>%
+    ggplot() +
+    aes(term, 1 - estimate, ymin = 1 - conf.low, ymax = 1 - conf.high) +
     geom_point(color = "#F8766D") +
     geom_linerange(color = "#F8766D") +
     labs(x = "", y = "1 - HR", subtitle = "B. Course timescale") +
-    coord_cartesian(ylim = c(0,1)) +
+    coord_cartesian(ylim = c(0, 1)) +
     theme_minimal()
 
 p2 + p3 + plot_annotation(title = "Efficacy of prior infection against future infection during Omicron period", caption = "Reference group: Naive") + plot_layout(widths = c(2, 1))
-
 ```
 
 
@@ -401,5 +413,4 @@ p2 + p3 + plot_annotation(title = "Efficacy of prior infection against future in
 
 sessionInfo() %>%
     pander::pander()
-
 ```

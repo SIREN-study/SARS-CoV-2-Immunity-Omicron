@@ -31,16 +31,16 @@ siren_cohort <- siren_raw %>%
         ar = pmax(date_enrolled, start_time)
     ) %>%
     filter(
-        #(vaccine_name1 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name1==""),
-        #(vaccine_name2 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name2==""),
-        #(vaccine_name3 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name3==""),
-        #(vaccine_name1 == vaccine_name2 | vaccine_name1=="" | vaccine_name2==""),
+        # (vaccine_name1 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name1==""),
+        # (vaccine_name2 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name2==""),
+        # (vaccine_name3 %in% c("AstraZeneca","Pfizer-BioNTech") | vaccine_name3==""),
+        # (vaccine_name1 == vaccine_name2 | vaccine_name1=="" | vaccine_name2==""),
         (vaccine_date1 < vaccine_date2 | is.na(vaccine_date2) | is.na(vaccine_date1)), # vaccine date checks
         (vaccine_date1 < vaccine_date3 | is.na(vaccine_date3) | is.na(vaccine_date1)),
         (vaccine_date2 < vaccine_date3 | is.na(vaccine_date3) | is.na(vaccine_date2)),
         (is.na(second_pcr_pos_date) | second_pcr_pos_date >= ar), # exclude people who have second infection prior to joining study
-        #!(start_date_pos_c > vaccine_date1 & !is.na(start_date_pos_c) & !is.na(vaccine_date1)), # screen out people who become positive after vaccination
-        !(cohort_final==1 & is.na(start_date_pos_c)) # exclude people in positive cohort but with unknown infection date
+        # !(start_date_pos_c > vaccine_date1 & !is.na(start_date_pos_c) & !is.na(vaccine_date1)), # screen out people who become positive after vaccination
+        !(cohort_final == 1 & is.na(start_date_pos_c)) # exclude people in positive cohort but with unknown infection date
     )
 
 # n = 38,993
@@ -53,7 +53,7 @@ siren <- siren_cohort %>%
             filter(
                 cohort_final == 0, !is.na(first_pcr_pos_date),
                 first_pcr_pos_date <= as_date("2021-09-01"),
-                #(first_pcr_pos_date < vaccine_date1 | is.na(vaccine_date1)),
+                # (first_pcr_pos_date < vaccine_date1 | is.na(vaccine_date1)),
                 ar < first_pcr_pos_date
             ) %>%
             mutate(
@@ -75,8 +75,8 @@ siren <- siren_cohort %>%
             event == 0 ~ last_pcr_neg_date
         ),
         dose_3_regimen = case_when(
-            vaccine_name1=="Pfizer-BioNTech" & vaccine_name2=="Pfizer-BioNTech" & vaccine_name3=="Pfizer-BioNTech" ~ 1,
-            vaccine_name1=="AstraZeneca" & vaccine_name2=="AstraZeneca" & vaccine_name3=="Pfizer-BioNTech" ~ 2,
+            vaccine_name1 == "Pfizer-BioNTech" & vaccine_name2 == "Pfizer-BioNTech" & vaccine_name3 == "Pfizer-BioNTech" ~ 1,
+            vaccine_name1 == "AstraZeneca" & vaccine_name2 == "AstraZeneca" & vaccine_name3 == "Pfizer-BioNTech" ~ 2,
             TRUE ~ 0
         )
     ) %>%
@@ -85,7 +85,7 @@ siren <- siren_cohort %>%
         time > ar
     )
 
-# 40,430 records
+# 40,449 records
 
 # generate relative time variables to use in Cox proportional hazards model
 siren <- siren %>%
@@ -97,19 +97,22 @@ siren <- siren %>%
         vd2 = vaccine_date2 - start_time,
         vd3 = vaccine_date3 - start_time,
         follow_up_time = time,
-        region = factor(region, labels = c("East Midlands","East of England","London","North East",
-                                           "North West","South East","South West","West Midlands",
-                                           "Yorkshire and Humber","Scotland","Northern Ireland","Wales")),
-        agegr = factor(agegr, labels = c("<25","25-34","35-44","45-54","55-64","65+")),
-        gender = factor(gender, labels = c("Male","Female","Non-binary")),
-        ethngr = factor(ethngr, labels = c("White","Asian","Black","Mixed","Other ethnicity","Unknown ethnicity")),
-        work_exposure_frequency = factor(work_exposure_frequency, labels = c("Every day","Once a week","Once a month","Less than once a month","Never")),
-        occ_set = factor(occ_set, labels = c("Office","Patient facing (non-clinical)","Outpatient",
-                                                     "Maternity,Labour Ward","Ambulance,Emergency Department,Inpatient",
-                                                     "Intensive care","Theatres","Other"))
+        region = factor(region, labels = c(
+            "East Midlands", "East of England", "London", "North East",
+            "North West", "South East", "South West", "West Midlands",
+            "Yorkshire and Humber", "Scotland", "Northern Ireland", "Wales"
+        )),
+        agegr = factor(agegr, labels = c("<25", "25-34", "35-44", "45-54", "55-64", "65+")),
+        gender = factor(gender, labels = c("Male", "Female", "Non-binary")),
+        ethngr = factor(ethngr, labels = c("White", "Asian", "Black", "Mixed", "Other ethnicity", "Unknown ethnicity")),
+        work_exposure_frequency = factor(work_exposure_frequency, labels = c("Every day", "Once a week", "Once a month", "Less than once a month", "Never")),
+        occ_set = factor(occ_set, labels = c(
+            "Office", "Patient facing (non-clinical)", "Outpatient",
+            "Maternity,Labour Ward", "Ambulance,Emergency Department,Inpatient",
+            "Intensive care", "Theatres", "Other"
+        ))
     )
 
-siren %>% count() # n = 40,430 records
+siren %>% count() # n = 40,449 records
 
 saveRDS(siren, here("data/siren_pre_processing.RDS"))
-
