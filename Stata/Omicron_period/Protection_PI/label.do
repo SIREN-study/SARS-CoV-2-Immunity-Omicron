@@ -2,7 +2,7 @@ clear
 set more off
 use split_all, clear
 
-drop if after_primary==1 & ar>268
+*drop if after_primary==1 & ar>268
 *************************GROUPING INTO CATEGORIES AND LABELLING***********************
 *NAIVE NO PREVIOUS INFECTION
 
